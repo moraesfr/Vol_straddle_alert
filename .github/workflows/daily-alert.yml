@@ -13,7 +13,7 @@ jobs:
 
     env:
       TZ: America/Sao_Paulo
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      R_LIBS_USER: /home/runner/R/library
       ALERT_SMTP_HOST: ${{ secrets.ALERT_SMTP_HOST }}
       ALERT_SMTP_PORT: ${{ secrets.ALERT_SMTP_PORT }}
       ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
@@ -26,15 +26,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          use-public-rspm: true
+      - name: Install system R
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends r-base r-base-dev \
+            libcurl4-openssl-dev libssl-dev libxml2-dev
 
       - name: Install R dependencies
         shell: bash
         run: |
-          Rscript -e "install.packages(c('quantmod','dplyr','readr','xts','zoo','TTR'), repos='https://cloud.r-project.org', Ncpus=2)"
+          mkdir -p "${R_LIBS_USER}"
+          sudo Rscript -e "install.packages(c('quantmod','dplyr','readr','xts','zoo','TTR'), repos='https://cloud.r-project.org', Ncpus=2)"
           Rscript -e "library(quantmod); library(dplyr); library(readr); cat('R packages OK\n')"
 
       - name: Setup Python
