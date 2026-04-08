@@ -13,7 +13,6 @@ jobs:
 
     env:
       TZ: America/Sao_Paulo
-      R_LIBS_USER: /home/runner/R/library
       ALERT_SMTP_HOST: ${{ secrets.ALERT_SMTP_HOST }}
       ALERT_SMTP_PORT: ${{ secrets.ALERT_SMTP_PORT }}
       ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
@@ -26,28 +25,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system R
-        shell: bash
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends r-base r-base-dev \
-            libcurl4-openssl-dev libssl-dev libxml2-dev
-
-      - name: Install R dependencies
-        shell: bash
-        run: |
-          mkdir -p "${R_LIBS_USER}"
-          sudo Rscript -e "install.packages(c('quantmod','dplyr','readr','xts','zoo','TTR'), repos='https://cloud.r-project.org', Ncpus=2)"
-          Rscript -e "library(quantmod); library(dplyr); library(readr); cat('R packages OK\n')"
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      - name: Install Python dependencies
+        run: pip install yfinance pandas numpy
+
       - name: Run daily alert and send email
-        shell: bash
-        working-directory: daily_alert
-        run: |
-          chmod +x run_daily_alert_and_email.sh
-          ./run_daily_alert_and_email.sh
+        working-directory: python_test
+        run: python3 run_daily_alert.py
