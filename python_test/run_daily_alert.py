@@ -106,6 +106,11 @@ def save_csv(rows: list, fields: list) -> Path:
     return file_latest
 
 
+def _safe_sym(sym: str) -> str:
+    """Return a filesystem-safe version of a symbol name."""
+    return sym.replace(".", "_").replace("/", "_")
+
+
 def generate_volatility_plot(sym: str, vol_df: pd.DataFrame, thr: float, output_dir: Path) -> Path:
     """Generate a 90-day rolling volatility plot, save as PNG file, and return the file path."""
     df90 = vol_df.tail(PLOT_DAYS).copy()
@@ -129,8 +134,7 @@ def generate_volatility_plot(sym: str, vol_df: pd.DataFrame, thr: float, output_
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    safe_sym = sym.replace(".", "_").replace("/", "_")
-    plot_path = output_dir / f"{safe_sym}_vol.png"
+    plot_path = output_dir / f"{_safe_sym(sym)}_vol.png"
     fig.savefig(plot_path, format="png", dpi=100, bbox_inches="tight")
     plt.close(fig)
     return plot_path
@@ -160,7 +164,7 @@ def print_summary(rows: list, today_str: str):
         for r in below))
 
 
-def build_email_body(rows: list, today_str: str, plots_dir: Path) -> tuple:
+def build_email_body(rows: list, today_str: str, plots_dir: Path) -> tuple[str, str, str, list[tuple[str, Path]]]:
     """Return (subject, plain_text, html_body, plot_info) where plot_info is a list of (cid, path)."""
     alerts = [r for r in rows if r["is_alert_today"]]
     below = [r for r in rows if r["below_threshold"]]
@@ -219,8 +223,7 @@ def build_email_body(rows: list, today_str: str, plots_dir: Path) -> tuple:
         if vol_df is not None and not math.isnan(thr) and len(vol_df) > 0:
             try:
                 plot_path = generate_volatility_plot(r["symbol"], vol_df, thr, plots_dir)
-                safe_sym = r["symbol"].replace(".", "_").replace("/", "_")
-                cid = f"{safe_sym}_vol"
+                cid = f"{_safe_sym(r['symbol'])}_vol"
                 plot_info.append((cid, plot_path))
                 plots_html += (
                     f'<div style="margin:20px 0">'
