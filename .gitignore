@@ -8,3 +8,4 @@ daily_alert/daily_alert_check_latest.csv
 daily_alert/daily_alert_check_*.csv
 daily_alert_check_latest.csv
 daily_alert_check_*.csv
+python_test/__pycache__/
