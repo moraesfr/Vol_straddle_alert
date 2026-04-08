@@ -33,6 +33,13 @@ jobs:
       - name: Install Python dependencies
         run: pip install yfinance pandas numpy
 
+      - name: Diagnostics
+        run: |
+          echo "SMTP host length: ${#ALERT_SMTP_HOST}"
+          echo "SMTP port: $ALERT_SMTP_PORT"
+          nc -zv smtp.gmail.com 587 || echo "PORT 587 BLOCKED"
+          nc -zv smtp.gmail.com 465 || echo "PORT 465 BLOCKED"
+
       - name: Run daily alert and send email
         working-directory: python_test
         run: python3 run_daily_alert.py
