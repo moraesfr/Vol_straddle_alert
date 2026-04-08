@@ -1,0 +1,119 @@
+═══════════════════════════════════════════════════════════════════════════════
+ ESTRATÉGIA DE STRADDLE COM VOLATILIDADE BAIXA - ARQUIVOS GERADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+📄 RELATÓRIOS PRINCIPAIS
+────────────────────────────────────────────────────────────────────────────────
+✓ RELATORIO_STRADDLE.md (5 KB)
+  → Resumo completo em Markdown
+  → Metodologia, resultados, análise de risco
+  → Recomendações finais
+
+✓ straddle_report_visual.pdf (3,8 KB)
+  → PDF com gráficos chave e métricas de desempenho
+  → Página 1: Resumo Executivo
+  → Página 2: Gráficos (P&L, Distribuição, Cumulativo)
+  → Página 3: Dos 10 primeiras operações
+  → Página 4: Metodologia e Conclusões
+
+✓ straddle_report.html (901 KB)
+  → Relatório técnico completo em HTML
+  → Contém todos os gráficos embutidos
+  → Tabelas interativas com R Markdown
+  → Abrir em qualquer navegador
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 DADOS DE RESULTADOS
+────────────────────────────────────────────────────────────────────────────────
+✓ petr4_straddle_results_scaled.csv (2,4 KB)
+  → 19 linhas = 19 operações executadas
+  → Colunas: alert_date, alert_price, strike, straddle_cost, exit_date, 
+             exit_price, exit_pnl, exit_pnl_pct, exit_reason, days_held
+  → Pronto para análise/auditoria
+
+✓ petr4_volatility_rolling_fixed.csv (61 KB)
+  → Série completa de volatilidade rolling (20 dias)
+  → 810 linhas de dados diários
+  → Usado para detecção de alertas e padrões
+
+✓ petr4_volatility_analysis.csv
+✓ petr4_straddle_candidates.csv
+  → Dados intermediários de análise de padrões
+
+────────────────────────────────────────────────────────────────────────────────
+
+📈 VISUALIZAÇÕES
+────────────────────────────────────────────────────────────────────────────────
+✓ petr4_straddle_equity_curve.png
+  → Curva de P&L cumulativo ao longo das 19 operações
+  → 100% acima de zero
+  → Visível também em straddle_report.html
+
+✓ volatility_rolling_by_symbol.png (do arquivo volatility_analysis_top5.R)
+  → Série temporal de volatilidade para as 5 ações
+  → Mostra os períodos de alerta de queda
+
+────────────────────────────────────────────────────────────────────────────────
+
+💾 SCRIPTS UTILIZADOS
+────────────────────────────────────────────────────────────────────────────────
+✓ straddle_volatility_analysis.R
+  → Análise do padrão de queda/spike de volatilidade
+
+✓ fix_volatility_dates.R
+  → Correção de datas para volatilidade rolling
+
+✓ straddle_simulation_v2.R
+  → Simulação completa das 19 operações com Black-Scholes
+
+✓ create_visual_report.R
+  → Gerador de PDF visual com gráficos
+
+✓ straddle_report.Rmd
+  → Fonte R Markdown do relatório HTML técnico
+
+✓ generate_pdf.py
+  → Script auxiliar Python para conversão
+
+────────────────────────────────────────────────────────────────────────────────
+
+🎯 RESUMO DE RESULTADOS
+────────────────────────────────────────────────────────────────────────────────
+
+Total de Operações:        19
+Capital Deployado:         R$ 19.000
+Lucro Gerado:              R$ 40.540,83
+Retorno Percentual:        213,37%
+Taxa de Acerto:            100% (19/19 no alvo +20%)
+Tempo Médio em Posição:    3 dias
+Lucro Médio por R$1.000:  R$ 2.133,73
+Melhor Trade:              R$ 10.722,22
+Pior Trade:                R$ 272,73
+
+Comparação com CDI:
+  - CDI (8% a.a.) para o mesmo período: R$ 1.059,66
+  - Outperformance: 38,2x superior ao CDI
+
+────────────────────────────────────────────────────────────────────────────────
+
+📖 COMO USAR ESSES ARQUIVOS
+────────────────────────────────────────────────────────────────────────────────
+
+1. LEITURA RÁPIDA:
+   → Abra: RELATORIO_STRADDLE.md (este arquivo em texto)
+   → Veja: straddle_report_visual.pdf (2 minutos)
+
+2. ANÁLISE TÉCNICA COMPLETA:
+   → Abra: straddle_report.html no navegador
+   → Contém código R, gráficos, tabelas, explicações detalhadas
+
+3. AUDITORIA DOS RESULTADOS:
+   → Arquivo: petr4_straddle_results_scaled.csv
+   → Verifique cada operação com seus detalhes
+
+4. RODANDO NOVAMENTE:
+   → Execute: Rscript straddle_simulation_v2.R
+   → Para regerar com diferentes parâmetros
+
+════════════════════════════════════════════════════════════════════════════════

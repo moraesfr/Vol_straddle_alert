@@ -1,0 +1,2 @@
+symbol,start_date,end_date,initial_capital,final_equity,roi_pct,put_sales,call_sales,put_assignments,call_assignments
+PETR4.SA,2023-01-02,2026-04-02,1000,1387.304923539048,38.7304923539048,8,10,5,5

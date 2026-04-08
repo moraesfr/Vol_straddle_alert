@@ -1,0 +1,26 @@
+======================================================================
+ESTRATÉGIA DE STRADDLE COM VOLATILIDADE BAIXA - PETR4
+Análise Quantitativa de Mercado
+======================================================================
+
+Total de Operações: 19
+Capital Deployado: R$ 19,000
+Lucro Total: R$ 40,540.83
+Retorno: 213.37%
+
+Operações de Exemplo:
+
+1. Data: 2023-09-25
+   Preço: 34.25 | Lucro: R$ 2210.5263157894733
+
+2. Data: 2024-01-08
+   Preço: 38.43 | Lucro: R$ 272.7272727272725
+
+3. Data: 2024-02-26
+   Preço: 42.69 | Lucro: R$ 10722.222222222223
+
+4. Data: 2024-04-18
+   Preço: 39.85 | Lucro: R$ 2538.4615384615386
+
+5. Data: 2024-07-11
+   Preço: 38.33 | Lucro: R$ 466.66666666666674
