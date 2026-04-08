@@ -9,7 +9,9 @@ import csv
 import math
 import os
 import smtplib
+import socket
 import sys
+import time
 from datetime import date
 from email.message import EmailMessage
 from pathlib import Path
@@ -32,17 +34,30 @@ def calc_rolling_vol(close: pd.Series, window: int = ROLLING_WINDOW) -> pd.Serie
     return log_ret.rolling(window=window, min_periods=window).std()
 
 
-def check_symbol(sym: str) -> dict:
+def check_symbol(sym: str, max_retries: int = 3) -> dict:
     base = dict(symbol=sym, last_date="", last_vol=float("nan"),
                 threshold=float("nan"), is_alert_today=False,
                 below_threshold=False, status="ok")
-    try:
-        raw = yf.download(sym, start=START_DATE, auto_adjust=True, progress=False)
-    except Exception as e:
-        base["status"] = f"download_error: {e}"
-        return base
+    raw = None
+    for attempt in range(max_retries):
+        try:
+            print(f"Downloading {sym} (attempt {attempt + 1}/{max_retries})...")
+            raw = yf.download(sym, start=START_DATE, auto_adjust=True, progress=False)
+            break
+        except (socket.gaierror, OSError) as e:
+            wait = min(2 ** attempt, 60)
+            print(f"Network error downloading {sym}: {e}. "
+                  f"{'Retrying in ' + str(wait) + 's...' if attempt < max_retries - 1 else 'Giving up.'}")
+            if attempt < max_retries - 1:
+                time.sleep(wait)
+            else:
+                base["status"] = f"download_error: {e}"
+                return base
+        except Exception as e:
+            base["status"] = f"download_error: {e}"
+            return base
 
-    if raw is None or len(raw) < 25:
+    if raw is None or raw.empty or len(raw) < 25:
         base["status"] = "insufficient_data"
         return base
 
@@ -143,7 +158,7 @@ def get_env(name: str, default: str = None) -> str:
     return val
 
 
-def send_email(subject: str, body: str, attachment: Path):
+def send_email(subject: str, body: str, attachment: Path, max_retries: int = 3):
     smtp_host = get_env("ALERT_SMTP_HOST")
     smtp_port = int(get_env("ALERT_SMTP_PORT", "587"))
     smtp_user = get_env("ALERT_SMTP_USER")
@@ -151,6 +166,11 @@ def send_email(subject: str, body: str, attachment: Path):
     smtp_from = get_env("ALERT_EMAIL_FROM")
     smtp_to = get_env("ALERT_EMAIL_TO")
     use_tls = get_env("ALERT_SMTP_USE_TLS", "true").lower() == "true"
+
+    if not smtp_host:
+        raise RuntimeError("ALERT_SMTP_HOST is empty; cannot send email.")
+
+    print(f"Connecting to SMTP host: {smtp_host}:{smtp_port} (TLS={use_tls})")
 
     recipients = [x.strip() for x in smtp_to.split(",") if x.strip()]
     msg = EmailMessage()
@@ -161,11 +181,25 @@ def send_email(subject: str, body: str, attachment: Path):
     msg.add_attachment(attachment.read_bytes(), maintype="text", subtype="csv",
                        filename=attachment.name)
 
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-        if use_tls:
-            server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.send_message(msg)
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            print(f"Sending email (attempt {attempt + 1}/{max_retries})...")
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                if use_tls:
+                    server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+            return
+        except (socket.gaierror, OSError, smtplib.SMTPException) as e:
+            last_error = e
+            wait = min(2 ** attempt, 60)
+            print(f"Email send error (attempt {attempt + 1}/{max_retries}): {e}. "
+                  f"{'Retrying in ' + str(wait) + 's...' if attempt < max_retries - 1 else 'Giving up.'}")
+            if attempt < max_retries - 1:
+                time.sleep(wait)
+
+    raise RuntimeError(f"Failed to send email after {max_retries} attempts: {last_error}")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
