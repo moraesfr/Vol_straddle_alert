@@ -5,17 +5,19 @@ Equivalent of run_daily_alert_and_email.sh + check_alert_today.R + send_daily_al
 in a single Python script with no R dependency.
 """
 
-import base64
 import csv
 import math
 import os
 import smtplib
 import socket
 import sys
+import tempfile
 import time
 from datetime import date
-from email.message import EmailMessage
-from io import BytesIO
+from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 
 import matplotlib
@@ -104,8 +106,8 @@ def save_csv(rows: list, fields: list) -> Path:
     return file_latest
 
 
-def generate_volatility_plot(sym: str, vol_df: pd.DataFrame, thr: float) -> str:
-    """Generate a 90-day rolling volatility plot and return as a base64-encoded PNG string."""
+def generate_volatility_plot(sym: str, vol_df: pd.DataFrame, thr: float, output_dir: Path) -> Path:
+    """Generate a 90-day rolling volatility plot, save as PNG file, and return the file path."""
     df90 = vol_df.tail(PLOT_DAYS).copy()
     dates = pd.to_datetime(df90["date"])
     vols = df90["volatility"].values
@@ -127,11 +129,11 @@ def generate_volatility_plot(sym: str, vol_df: pd.DataFrame, thr: float) -> str:
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
 
-    buf = BytesIO()
-    fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+    safe_sym = sym.replace(".", "_").replace("/", "_")
+    plot_path = output_dir / f"{safe_sym}_vol.png"
+    fig.savefig(plot_path, format="png", dpi=100, bbox_inches="tight")
     plt.close(fig)
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode("ascii")
+    return plot_path
 
 
 def print_summary(rows: list, today_str: str):
@@ -158,8 +160,8 @@ def print_summary(rows: list, today_str: str):
         for r in below))
 
 
-def build_email_body(rows: list, today_str: str) -> tuple[str, str, str]:
-    """Return (subject, plain_text, html_body)."""
+def build_email_body(rows: list, today_str: str, plots_dir: Path) -> tuple:
+    """Return (subject, plain_text, html_body, plot_info) where plot_info is a list of (cid, path)."""
     alerts = [r for r in rows if r["is_alert_today"]]
     below = [r for r in rows if r["below_threshold"]]
     lines = [
@@ -209,16 +211,20 @@ def build_email_body(rows: list, today_str: str) -> tuple[str, str, str]:
             f"</tr>\n"
         )
 
+    plot_info = []
     plots_html = ""
     for r in rows:
         vol_df = r.get("vol_history")
         thr = r.get("threshold", float("nan"))
         if vol_df is not None and not math.isnan(thr) and len(vol_df) > 0:
             try:
-                b64 = generate_volatility_plot(r["symbol"], vol_df, thr)
+                plot_path = generate_volatility_plot(r["symbol"], vol_df, thr, plots_dir)
+                safe_sym = r["symbol"].replace(".", "_").replace("/", "_")
+                cid = f"{safe_sym}_vol"
+                plot_info.append((cid, plot_path))
                 plots_html += (
                     f'<div style="margin:20px 0">'
-                    f'<img src="data:image/png;base64,{b64}" '
+                    f'<img src="cid:{cid}" '
                     f'style="max-width:100%;border:1px solid #ddd;border-radius:4px" '
                     f'alt="{r["symbol"]} volatility plot">'
                     f'</div>\n'
@@ -274,7 +280,7 @@ def build_email_body(rows: list, today_str: str) -> tuple[str, str, str]:
 </body>
 </html>"""
 
-    return subject, plain_text, html_body
+    return subject, plain_text, html_body, plot_info
 
 
 def get_env(name: str, default: str = None) -> str:
@@ -284,7 +290,8 @@ def get_env(name: str, default: str = None) -> str:
     return val
 
 
-def send_email(subject: str, body: str, html_body: str, attachment: Path, max_retries: int = 3):
+def send_email(subject: str, body: str, html_body: str, attachment: Path,
+               plot_attachments: list = None, max_retries: int = 3):
     smtp_host = get_env("ALERT_SMTP_HOST")
     smtp_port = int(get_env("ALERT_SMTP_PORT", "587"))
     smtp_user = get_env("ALERT_SMTP_USER")
@@ -299,18 +306,39 @@ def send_email(subject: str, body: str, html_body: str, attachment: Path, max_re
     print(f"Connecting to SMTP host: {smtp_host}:{smtp_port} (TLS={use_tls})")
 
     recipients = [x.strip() for x in smtp_to.split(",") if x.strip()]
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = smtp_from
-    msg["To"] = ", ".join(recipients)
-    # Plain-text fallback
-    msg.set_content(body)
-    # HTML alternative with embedded plots
-    msg.add_alternative(html_body, subtype="html")
-    # Promote to multipart/mixed so the CSV attachment can be added alongside
-    msg.make_mixed()
-    msg.add_attachment(attachment.read_bytes(), maintype="text", subtype="csv",
-                       filename=attachment.name)
+
+    # Outer container: multipart/mixed (holds content + CSV attachment)
+    outer = MIMEMultipart("mixed")
+    outer["Subject"] = subject
+    outer["From"] = smtp_from
+    outer["To"] = ", ".join(recipients)
+
+    # Middle container: multipart/alternative (plain text fallback + related HTML)
+    alternative = MIMEMultipart("alternative")
+    alternative.attach(MIMEText(body, "plain", "utf-8"))
+
+    # Inner container: multipart/related (HTML + inline images)
+    related = MIMEMultipart("related")
+    related.attach(MIMEText(html_body, "html", "utf-8"))
+
+    if plot_attachments:
+        for cid, path in plot_attachments:
+            with path.open("rb") as f:
+                img_data = f.read()
+            img = MIMEImage(img_data, "png")
+            img.add_header("Content-ID", f"<{cid}>")
+            img.add_header("Content-Disposition", "inline", filename=path.name)
+            related.attach(img)
+
+    alternative.attach(related)
+    outer.attach(alternative)
+
+    # CSV attachment
+    with attachment.open("rb") as f:
+        csv_data = f.read()
+    csv_part = MIMEApplication(csv_data, Name=attachment.name)
+    csv_part.add_header("Content-Disposition", "attachment", filename=attachment.name)
+    outer.attach(csv_part)
 
     last_error = None
     for attempt in range(max_retries):
@@ -320,7 +348,7 @@ def send_email(subject: str, body: str, html_body: str, attachment: Path, max_re
                 if use_tls:
                     server.starttls()
                 server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
+                server.sendmail(smtp_from, recipients, outer.as_string())
             return
         except (socket.gaierror, OSError, smtplib.SMTPException) as e:
             last_error = e
@@ -349,15 +377,17 @@ def main():
     latest_csv = save_csv(rows, fields)
     print(f"\nSaved files:\n  - daily_alert_check_{today_str}.csv\n  - daily_alert_check_latest.csv")
 
-    subject, body, html_body = build_email_body(rows, today_str)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        plots_dir = Path(tmp_dir)
+        subject, body, html_body, plot_info = build_email_body(rows, today_str, plots_dir)
 
-    if dry_run:
-        print("\n--- DRY RUN ---")
-        print(subject)
-        print(body)
-        return
+        if dry_run:
+            print("\n--- DRY RUN ---")
+            print(subject)
+            print(body)
+            return
 
-    send_email(subject, body, html_body, latest_csv)
+        send_email(subject, body, html_body, latest_csv, plot_attachments=plot_info)
     print("Email enviado com sucesso.")
 
 
