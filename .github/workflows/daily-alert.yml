@@ -25,6 +25,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate Secrets Configuration
+        run: |
+          echo "=== Validating required secrets ==="
+          required_secrets=("ALERT_SMTP_HOST" "ALERT_SMTP_PORT" "ALERT_SMTP_USER" "ALERT_SMTP_PASS" "ALERT_EMAIL_FROM" "ALERT_EMAIL_TO" "ALERT_SMTP_USE_TLS")
+          missing_secrets=()
+
+          for secret in "${required_secrets[@]}"; do
+            secret_var="${!secret}"
+            if [ -z "$secret_var" ]; then
+              missing_secrets+=("$secret")
+              echo "❌ $secret: NOT SET"
+            else
+              echo "✓ $secret: configured"
+            fi
+          done
+
+          if [ ${#missing_secrets[@]} -gt 0 ]; then
+            echo ""
+            echo "ERROR: The following required secrets are missing:"
+            printf '%s\n' "${missing_secrets[@]}"
+            echo ""
+            echo "Please set them in repository Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== All secrets are configured ==="
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -33,12 +61,36 @@ jobs:
       - name: Install Python dependencies
         run: pip install yfinance pandas numpy
 
-      - name: Diagnostics
+      - name: Network Diagnostics
         run: |
-          echo "SMTP host length: ${#ALERT_SMTP_HOST}"
-          echo "SMTP port: $ALERT_SMTP_PORT"
-          nc -zv smtp.gmail.com 587 || echo "PORT 587 BLOCKED"
-          nc -zv smtp.gmail.com 465 || echo "PORT 465 BLOCKED"
+          echo "=== Network Connectivity Check ==="
+          echo "Testing connection to Yahoo Finance API..."
+          python3 << 'EOF'
+          import socket
+          try:
+              socket.getaddrinfo('query1.finance.yahoo.com', 443)
+              print("✓ Yahoo Finance API: reachable")
+          except socket.gaierror as e:
+              print(f"❌ Yahoo Finance API: unreachable - {e}")
+              exit(1)
+          EOF
+
+          echo ""
+          echo "Testing SMTP host resolution..."
+          python3 << 'EOF'
+          import socket
+          import os
+
+          smtp_host = os.getenv("ALERT_SMTP_HOST", "")
+          if smtp_host:
+              try:
+                  socket.getaddrinfo(smtp_host, 587)
+                  print(f"✓ SMTP host ({smtp_host}): DNS resolvable")
+              except socket.gaierror as e:
+                  print(f"⚠ SMTP host ({smtp_host}): DNS error - {e}")
+          else:
+              print("⚠ ALERT_SMTP_HOST not set")
+          EOF
 
       - name: Run daily alert and send email
         working-directory: python_test
