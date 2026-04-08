@@ -13,6 +13,7 @@ jobs:
 
     env:
       TZ: America/Sao_Paulo
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       ALERT_SMTP_HOST: ${{ secrets.ALERT_SMTP_HOST }}
       ALERT_SMTP_PORT: ${{ secrets.ALERT_SMTP_PORT }}
       ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
